@@ -150,28 +150,21 @@ async def query_market(session, api_key, market, currency, locale, origin, desti
 
             data = json.loads(text)
 
-            # v3 yapısı: content.results.itineraries
-            itineraries = data.get("content", {}).get("results", {}).get("itineraries", {})
-
-            # Debug: TR market için tam API yanıtını logla
-            if market == "TR":
-                logger.warning(f"[DEBUG TR] HTTP {resp.status}")
-                logger.warning(f"[DEBUG TR] Response: {text[:800]}")
+            # API quotes yapisi: content.results.quotes
+            quotes = data.get("content", {}).get("results", {}).get("quotes", {})
 
             min_price = None
-            for itin_id, itin in itineraries.items():
-                for option in itin.get("pricingOptions", []):
-                    price_obj = option.get("price", {})
-                    for key in ("amount", "raw", "value"):
-                        raw = price_obj.get(key)
-                        if raw is not None:
-                            try:
-                                val = float(raw)
-                                if val > 0 and (min_price is None or val < min_price):
-                                    min_price = val
-                                break
-                            except (ValueError, TypeError):
-                                pass
+            for quote_id, quote in quotes.items():
+                price_obj = quote.get("minPrice", {})
+                raw = price_obj.get("amount")
+                if raw is not None:
+                    try:
+                        val = float(raw)
+                        # unit PRICE_UNIT_WHOLE ise tam sayi (kurus degil)
+                        if val > 0 and (min_price is None or val < min_price):
+                            min_price = val
+                    except (ValueError, TypeError):
+                        pass
 
             if min_price is None:
                 return {"market": market, "price_eur": None, "error": "fiyat yok"}
