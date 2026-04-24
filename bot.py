@@ -9,7 +9,7 @@ from skyscanner_search import search_cheapest_market
 # AYARLAR — BURAYA KENDİ BİLGİLERİNİ GİR
 # =============================================
 TELEGRAM_TOKEN = "8713331820:AAG53oUz7TE-CXRs060TC2yV41HHhsFCbrQ"
-SKYSCANNER_KEY   = "uc643373167396223405725428773537"
+SKYSCANNER_API_KEY = "uc643373167396223405725428773537"
 # =============================================
 
 logging.basicConfig(
