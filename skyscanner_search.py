@@ -90,23 +90,49 @@ MARKETS = {
 }
 
 EUR_RATES = {
-    "EUR": 1.0, "TRY": 0.028, "GBP": 1.17, "USD": 0.92, "PLN": 0.23,
-    "RON": 0.20, "HUF": 0.0026, "CZK": 0.041, "SEK": 0.087, "NOK": 0.085,
-    "DKK": 0.134, "CHF": 1.02, "RUB": 0.010, "UAH": 0.022, "AED": 0.250,
-    "SAR": 0.245, "QAR": 0.253, "KWD": 3.00, "EGP": 0.019, "ILS": 0.248,
-    "INR": 0.011, "JPY": 0.0062, "KRW": 0.00067, "CNY": 0.127, "SGD": 0.685,
-    "THB": 0.026, "MYR": 0.200, "AUD": 0.596, "NZD": 0.547, "CAD": 0.676,
-    "MXN": 0.046, "BRL": 0.163, "ARS": 0.001, "ZAR": 0.048, "NGN": 0.00057,
-    "MAD": 0.092, "BGN": 0.511, "RSD": 0.0085, "HKD": 0.118, "TWD": 0.028,
-    "IDR": 0.000057, "PHP": 0.016, "VND": 0.000037, "PKR": 0.0033,
+    "EUR": 1.0, "TRY": 0.01896, "GBP": 1.174, "USD": 0.879, "PLN": 0.234,
+    "RON": 0.20080, "HUF": 0.00258, "CZK": 0.0400, "SEK": 0.0882, "NOK": 0.0851,
+    "DKK": 0.134, "CHF": 1.02, "RUB": 0.01070, "UAH": 0.0222, "AED": 0.2490,
+    "SAR": 0.244, "QAR": 0.253, "KWD": 3.00, "EGP": 0.0196, "ILS": 0.246,
+    "INR": 0.01074, "JPY": 0.00638, "KRW": 0.000654, "CNY": 0.128, "SGD": 0.664,
+    "THB": 0.0266, "MYR": 0.20600, "AUD": 0.549, "NZD": 0.506, "CAD": 0.637,
+    "MXN": 0.0464, "BRL": 0.161, "ARS": 0.000905, "ZAR": 0.048, "NGN": 0.00057,
+    "MAD": 0.092, "BGN": 0.511, "RSD": 0.0085, "HKD": 0.113, "TWD": 0.0287,
+    "IDR": 0.0000561, "PHP": 0.016, "VND": 0.0000361, "PKR": 0.0033,
     "BDT": 0.0083, "LKR": 0.003, "GEL": 0.340, "AZN": 0.540, "KZT": 0.002,
     "UZS": 0.000073, "JOD": 1.30, "IQD": 0.0007, "MKD": 0.016, "ALL": 0.0097,
     "BAM": 0.511, "MDL": 0.052, "AMD": 0.0024, "BYN": 0.290, "ISK": 0.0068,
 }
 
 
+# Gerçek zamanlı EUR kurları cache'i
+_eur_rates_cache = {}
+
+async def fetch_eur_rates(session):
+    """open.er-api.com'dan gerçek zamanlı EUR kurları çeker (TRY dahil 160+ para birimi)"""
+    global _eur_rates_cache
+    apis = [
+        "https://open.er-api.com/v6/latest/EUR",
+        "https://api.exchangerate-api.com/v4/latest/EUR",
+    ]
+    for api_url in apis:
+        try:
+            async with session.get(api_url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    rates = data.get("rates", {})
+                    if rates and "TRY" in rates:
+                        _eur_rates_cache = {cur: 1.0 / rate for cur, rate in rates.items() if rate > 0}
+                        _eur_rates_cache["EUR"] = 1.0
+                        logger.info(f"EUR kurları alındı ({len(rates)} para birimi). 1 EUR = {rates.get('TRY', '?')} TRY")
+                        return
+        except Exception as e:
+            logger.warning(f"Kur API hatası ({api_url}): {e}")
+    logger.warning("Kur API'leri başarısız, hardcoded kurlar kullanılıyor")
+
 def to_eur(amount, currency):
-    return round(float(amount) * EUR_RATES.get(currency, 1.0), 2)
+    rate = _eur_rates_cache.get(currency) or EUR_RATES.get(currency, 1.0)
+    return round(float(amount) * rate, 2)
 
 
 def flag_emoji(code):
@@ -186,6 +212,8 @@ async def search_cheapest_market(api_key, origin, destination, depart_date, retu
 
     connector = aiohttp.TCPConnector(limit=10)
     async with aiohttp.ClientSession(connector=connector) as session:
+        # Gerçek zamanlı EUR kurlarını al
+        await fetch_eur_rates(session)
         BATCH = 10
         DELAY = 1.5
         for i in range(0, len(market_list), BATCH):
@@ -242,6 +270,6 @@ async def search_cheapest_market(api_key, origin, destination, depart_date, retu
         all_markets_text += f"{flag_emoji(r['market'])} {r['market']} — {r['price_eur']:.0f} EUR _({r['price_original']:.0f} {r['currency']})_\n"
 
     stats = f"\n📈 Sonuç bulunan: *{len(results)}* market | Yanıtsız: {error_count}"
-    note = "\n\n_💡 Fiyatlar Skyscanner önbelleğinden gelir, 4 güne kadar eski olabilir._"
+    note = "\n\n_💡 Fiyatlar Skyscanner önbelleğinden, EUR kurları frankfurter.app'ten gerçek zamanlı alınır._"
 
     return header + winner + top5_text + all_markets_text + stats + note
