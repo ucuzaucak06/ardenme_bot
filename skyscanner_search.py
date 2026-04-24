@@ -236,7 +236,12 @@ async def search_cheapest_market(api_key, origin, destination, depart_date, retu
     for i, r in enumerate(top5):
         top5_text += f"{medals[i]} {flag_emoji(r['market'])} {r['market']} — {r['price_eur']:.0f} EUR _{r['price_original']:.0f} {r['currency']}_\n"
 
+    # Tüm marketler listesi
+    all_markets_text = "\n\n📋 *Tüm Fiyat Veren Marketler:*\n"
+    for r in results:
+        all_markets_text += f"{flag_emoji(r['market'])} {r['market']} — {r['price_eur']:.0f} EUR _({r['price_original']:.0f} {r['currency']})_\n"
+
     stats = f"\n📈 Sonuç bulunan: *{len(results)}* market | Yanıtsız: {error_count}"
     note = "\n\n_💡 Fiyatlar Skyscanner önbelleğinden gelir, 4 güne kadar eski olabilir._"
 
-    return header + winner + top5_text + stats + note
+    return header + winner + top5_text + all_markets_text + stats + note
